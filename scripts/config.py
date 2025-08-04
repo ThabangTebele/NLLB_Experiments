@@ -7,10 +7,19 @@ DATA_DIR = Path("data")
 PROCESSED_DIR = Path("processed")
 MODEL_DIR = Path("model")
 
+# === Language codes (NLLB format) ===
+LANG_CODES = {
+    "english": "eng_Latn",
+    "sepedi": "nso_Latn",   # Northern Sotho (Sepedi)
+    "tswana": "tsn_Latn"
+}
+
+# Default pair (for baseline)
+SOURCE_LANG = LANG_CODES["english"]
+TARGET_LANG = LANG_CODES["sepedi"]
+
 # === Model ===
-MODEL_NAME = "facebook/nllb-200-distilled-600M"  # lighter model for faster experimentation
-SOURCE_LANG = "eng_Latn"
-TARGET_LANG = "nso_Latn"  # Replace with correct language code (e.g., Sepedi = 'nso_Latn')
+MODEL_NAME = "facebook/nllb-200-distilled-600M"
 
 # === Training parameters ===
 MAX_LENGTH = 128
