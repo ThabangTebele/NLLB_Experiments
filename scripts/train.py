@@ -18,6 +18,7 @@ from config import (
     SOURCE_LANG, TARGET_LANG, DEVICE
 )
 
+
 try:
     from comet import download_model, load_from_checkpoint
     COMET_AVAILABLE = True
