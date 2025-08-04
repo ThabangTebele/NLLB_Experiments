@@ -8,7 +8,8 @@ from nltk.translate.meteor_score import meteor_score
 
 # Load model and tokenizer globally for efficiency
 MODEL_NAME = "facebook/nllb-200-distilled-600M"
-DEVICE = "cuda"  # change to 'cpu' if no GPU
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME).to(DEVICE)

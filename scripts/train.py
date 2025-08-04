@@ -81,6 +81,7 @@ def save_results(srcs, refs, hypos, bleu_scores, meteor_scores, comet_scores, ou
     df.to_csv(out_path, index=False)
     print(f"[✓] Saved detailed results to {out_path}")
 
+
 def main(args):
     import torch
 
@@ -98,6 +99,28 @@ def main(args):
     split_dataset = tokenized_dataset.train_test_split(test_size=0.1)
 
     data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
+
+
+    def compute_metrics(eval_preds):
+        preds, labels = eval_preds
+        # Replace -100 with tokenizer.pad_token_id in labels for decoding
+        labels = [[(l if l != -100 else tokenizer.pad_token_id) for l in label] for label in labels]
+
+        preds_text = tokenizer.batch_decode(preds, skip_special_tokens=True)
+        labels_text = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+        bleu = sum([evaluate_bleu(ref, hyp) for ref, hyp in zip(labels_text, preds_text)]) / len(preds_text)
+        meteor = sum([evaluate_meteor(ref, hyp) for ref, hyp in zip(labels_text, preds_text)]) / len(preds_text)
+        comet_scores = evaluate_comet(labels_text, preds_text, labels_text)
+        comet_score = "N/A" if not COMET_AVAILABLE else sum(comet_scores) / len(comet_scores)
+
+        print(f"[Epoch Eval] BLEU={bleu:.4f}, METEOR={meteor:.4f}, COMET={comet_score if isinstance(comet_score, str) else f'{comet_score:.4f}'}")
+
+        return {
+            "bleu": bleu,
+            "meteor": meteor,
+            "comet": comet_score if isinstance(comet_score, float) else 0.0,
+        }
 
     training_args = Seq2SeqTrainingArguments(
         output_dir=args.output_dir,
@@ -119,13 +142,15 @@ def main(args):
     )
 
     trainer = Seq2SeqTrainer(
-        model=model,
-        args=training_args,
-        train_dataset=split_dataset["train"],
-        eval_dataset=split_dataset["test"],
-        tokenizer=tokenizer,
-        data_collator=data_collator,
+    model=model,
+    args=training_args,
+    train_dataset=split_dataset["train"],
+    eval_dataset=split_dataset["test"],
+    tokenizer=tokenizer,
+    data_collator=data_collator,
+    compute_metrics=compute_metrics,
     )
+
 
     print("[*] Starting training...")
     trainer.train()

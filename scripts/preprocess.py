@@ -1,20 +1,19 @@
-import os
+from pathlib import Path
 import pandas as pd
 from config import DATA_DIR, LANG_PAIRS
 
-def load_and_clean_text(file_path):
-    with open(file_path, "r", encoding="utf-8") as f:
+def load_and_clean_text(file_path: Path):
+    with file_path.open(encoding="utf-8") as f:
         lines = f.readlines()
     return [line.strip() for line in lines if line.strip()]
 
 def preprocess_datasets():
     combined_data = []
-
     for src_lang, tgt_lang in LANG_PAIRS:
-        src_file = os.path.join(DATA_DIR, f"{src_lang}.txt")
-        tgt_file = os.path.join(DATA_DIR, f"{tgt_lang}.txt")
+        src_file = DATA_DIR / f"{src_lang}.txt"
+        tgt_file = DATA_DIR / f"{tgt_lang}.txt"
 
-        if not os.path.exists(src_file) or not os.path.exists(tgt_file):
+        if not src_file.exists() or not tgt_file.exists():
             print(f"Missing files: {src_file} or {tgt_file}")
             continue
 
@@ -31,7 +30,7 @@ def preprocess_datasets():
             combined_data.append({"src": src, "tgt": tgt, "src_lang": src_lang, "tgt_lang": tgt_lang})
 
     df = pd.DataFrame(combined_data)
-    output_path = os.path.join(DATA_DIR, "combined.csv")
+    output_path = DATA_DIR / "combined.csv"
     df.to_csv(output_path, index=False, encoding="utf-8")
     print(f"[✓] Combined dataset saved to: {output_path}")
 

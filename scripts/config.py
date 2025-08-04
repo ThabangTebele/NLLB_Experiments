@@ -31,7 +31,7 @@ LEARNING_RATE = 2e-5
 COMBINED_FILE = PROCESSED_DIR / "combined_dataset.csv"
 TOKENIZED_DATASET_PATH = PROCESSED_DIR / "tokenized_dataset"
 TRANSLATION_OUTPUT = PROCESSED_DIR / "translations.txt"
-EVAL_RESULTS_FILE = PROCESSED_DIR / "eval_results.json"
+EVAL_RESULTS_FILE = PROCESSED_DIR / "eval_results.csv"
 
 # === Evaluation ===
-METRICS = ["bleu", "sacrebleu"]
+METRICS = ["bleu", "sacrebleu","meteor","comet"]
