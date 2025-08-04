@@ -1,11 +1,15 @@
 # config.py
+import torch
 
 from pathlib import Path
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # === File paths ===
 DATA_DIR = Path("data")
 PROCESSED_DIR = Path("processed")
 MODEL_DIR = Path("model")
+FINE_TUNED_MODEL_DIR = MODEL_DIR / "model_finetuned"
 
 # === Language codes (NLLB format) ===
 LANG_CODES = {

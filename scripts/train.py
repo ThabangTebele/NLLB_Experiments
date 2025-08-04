@@ -5,7 +5,7 @@ from datasets import load_dataset
 from transformers import (
     AutoTokenizer, 
     AutoModelForSeq2SeqLM, 
-    DataCollatorForSeq2Seq, 
+    DataCollatorForSeq2SeqLM, 
     Seq2SeqTrainer, 
     Seq2SeqTrainingArguments
 )
@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from config import (
     MODEL_NAME, DATA_DIR, TEST_DATASET, MAX_LENGTH, BATCH_SIZE, EPOCHS, LEARNING_RATE,
-    SOURCE_LANG, TARGET_LANG
+    SOURCE_LANG, TARGET_LANG, DEVICE
 )
 
 try:
@@ -55,7 +55,7 @@ def translate(texts, tokenizer, model, src_lang, tgt_lang, batch_size=8):
     for i in tqdm(range(0, len(texts), batch_size), desc=f"Translating {src_lang} → {tgt_lang}"):
         batch = texts[i:i+batch_size]
         inputs = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=MAX_LENGTH)
-        inputs = {k: v.to(model.device) for k, v in inputs.items()}
+        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
         outputs = model.generate(
             **inputs,
             forced_bos_token_id=tokenizer.lang_code_to_id[tgt_lang],
@@ -81,12 +81,11 @@ def save_results(srcs, refs, hypos, bleu_scores, meteor_scores, comet_scores, ou
     df.to_csv(out_path, index=False)
     print(f"[✓] Saved detailed results to {out_path}")
 
-
 def main(args):
     import torch
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
+    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME).to(DEVICE)
 
     train_dataset_path = os.path.join(DATA_DIR, args.dataset)
     raw_dataset = load_dataset("csv", data_files=train_dataset_path, split="train")
@@ -98,12 +97,10 @@ def main(args):
     )
     split_dataset = tokenized_dataset.train_test_split(test_size=0.1)
 
-    data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
-
+    data_collator = DataCollatorForSeq2SeqLM(tokenizer, model=model)
 
     def compute_metrics(eval_preds):
         preds, labels = eval_preds
-        # Replace -100 with tokenizer.pad_token_id in labels for decoding
         labels = [[(l if l != -100 else tokenizer.pad_token_id) for l in label] for label in labels]
 
         preds_text = tokenizer.batch_decode(preds, skip_special_tokens=True)
@@ -142,22 +139,20 @@ def main(args):
     )
 
     trainer = Seq2SeqTrainer(
-    model=model,
-    args=training_args,
-    train_dataset=split_dataset["train"],
-    eval_dataset=split_dataset["test"],
-    tokenizer=tokenizer,
-    data_collator=data_collator,
-    compute_metrics=compute_metrics,
+        model=model,
+        args=training_args,
+        train_dataset=split_dataset["train"],
+        eval_dataset=split_dataset["test"],
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+        compute_metrics=compute_metrics,
     )
-
 
     print("[*] Starting training...")
     trainer.train()
     trainer.save_model(args.output_dir)
     print(f"[✓] Model fine-tuned and saved to {args.output_dir}")
 
-    # Load test data
     test_path = os.path.join(DATA_DIR, TEST_DATASET)
     test_df = pd.read_csv(test_path)
     src_texts = test_df["src"].tolist()
@@ -165,7 +160,7 @@ def main(args):
 
     print("[*] Starting translation on test data...")
     model.eval()
-    model.to("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(DEVICE)
 
     translations = translate(src_texts, tokenizer, model, SOURCE_LANG, TARGET_LANG, batch_size=BATCH_SIZE)
 
