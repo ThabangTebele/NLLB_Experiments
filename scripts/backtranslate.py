@@ -24,7 +24,7 @@ def get_latest_checkpoint(model_dir: Path) -> Path:
         return model_dir  # No checkpoints — return base path
 
     latest_checkpoint = max(checkpoints, key=lambda d: int(d.name.split("-")[-1]))
-    print(f"[✓] Using latest checkpoint: {latest_checkpoint.name}")
+    print(f" Using latest checkpoint: {latest_checkpoint.name}")
     return latest_checkpoint
 
 def load_model_and_tokenizer(model_path: str):
@@ -34,7 +34,7 @@ def load_model_and_tokenizer(model_path: str):
         model = AutoModelForSeq2SeqLM.from_pretrained(model_dir).to(DEVICE)
         return tokenizer, model
     except Exception as e:
-        print(f"[✗] Error loading model/tokenizer from '{model_path}': {e}")
+        print(f" Error loading model/tokenizer from '{model_path}': {e}")
         traceback.print_exc()
         raise
 
@@ -48,7 +48,7 @@ def translate(texts, source_lang, target_lang, tokenizer, model, batch_size=8, m
             translated = model.generate(**inputs, forced_bos_token_id=tokenizer.lang_code_to_id[target_lang])
             results.extend(tokenizer.batch_decode(translated, skip_special_tokens=True))
         except Exception as e:
-            print(f"[✗] Error during translation batch {i}-{i+batch_size}: {e}")
+            print(f" Error during translation batch {i}-{i+batch_size}: {e}")
             traceback.print_exc()
             results.extend(["[ERROR]"] * len(batch))
     return results
@@ -58,7 +58,7 @@ def evaluate_bleu(reference, hypothesis):
         smoothie = SmoothingFunction().method4
         return sentence_bleu([reference.split()], hypothesis.split(), smoothing_function=smoothie)
     except Exception as e:
-        print(f"[✗] BLEU evaluation error: {e}")
+        print(f"BLEU evaluation error: {e}")
         traceback.print_exc()
         return 0.0
 
@@ -66,7 +66,7 @@ def evaluate_meteor(reference, hypothesis):
     try:
         return meteor_score([reference], hypothesis)
     except Exception as e:
-        print(f"[✗] METEOR evaluation error: {e}")
+        print(f" METEOR evaluation error: {e}")
         traceback.print_exc()
         return 0.0
 
@@ -74,21 +74,21 @@ def run_backtranslation(input_file, output_file, model_path, limit=None):
     try:
         tokenizer, model = load_model_and_tokenizer(model_path)
     except Exception:
-        print("[✗] Failed to load model and tokenizer. Exiting.")
+        print(" Failed to load model and tokenizer. Exiting.")
         return
 
     try:
         with open(input_file, "r", encoding="utf-8") as f:
             original_en = [line.strip() for line in f if line.strip()]
     except Exception as e:
-        print(f"[✗] Error reading input file '{input_file}': {e}")
+        print(f"Error reading input file '{input_file}': {e}")
         traceback.print_exc()
         return
 
     if limit:
         original_en = original_en[:limit]
 
-    print(f"[✓] Loaded {len(original_en)} English sentences.")
+    print(f"Loaded {len(original_en)} English sentences.")
 
     try:
         # EN → ST
@@ -97,7 +97,7 @@ def run_backtranslation(input_file, output_file, model_path, limit=None):
         # ST → EN (Back-translate)
         back_translated_en = translate(translated_st, TGT_LANG, SRC_LANG, tokenizer, model)
     except Exception as e:
-        print(f"[✗] Error during translation: {e}")
+        print(f" Error during translation: {e}")
         traceback.print_exc()
         return
 
@@ -112,8 +112,8 @@ def run_backtranslation(input_file, output_file, model_path, limit=None):
     avg_bleu = sum(bleu_scores) / len(bleu_scores) if bleu_scores else 0.0
     avg_meteor = sum(meteor_scores) / len(meteor_scores) if meteor_scores else 0.0
 
-    print(f"\n[✓] Average BLEU score: {avg_bleu:.4f}")
-    print(f"[✓] Average METEOR score: {avg_meteor:.4f}")
+    print(f"\nAverage BLEU score: {avg_bleu:.4f}")
+    print(f"Average METEOR score: {avg_meteor:.4f}")
 
     # Save results
     try:
@@ -126,9 +126,9 @@ def run_backtranslation(input_file, output_file, model_path, limit=None):
         })
 
         df.to_csv(output_file, index=False)
-        print(f"[✓] Saved back-translation to {output_file}")
+        print(f" Saved back-translation to {output_file}")
     except Exception as e:
-        print(f"[✗] Error saving results to '{output_file}': {e}")
+        print(f" Error saving results to '{output_file}': {e}")
         traceback.print_exc()
 
 if __name__ == "__main__":
@@ -142,5 +142,5 @@ if __name__ == "__main__":
         args = parser.parse_args()
         run_backtranslation(args.input_file, args.output_file, args.model_path, args.limit)
     except Exception as e:
-        print(f"[✗] Unexpected error: {e}")
+        print(f" Unexpected error: {e}")
         traceback.print_exc()

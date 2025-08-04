@@ -43,7 +43,7 @@ def preprocess_datasets():
         df = pd.DataFrame(combined_data)
         output_path = DATA_DIR / "combined.csv"
         df.to_csv(output_path, index=False, encoding="utf-8")
-        print(f"[✓] Combined dataset saved to: {output_path}")
+        print(f" Combined dataset saved to: {output_path}")
     except Exception as e:
         print(f"[✗] Error saving combined dataset: {e}")
         traceback.print_exc()

@@ -39,7 +39,7 @@ def load_model():
             print(f"[!] Fine-tuned model not found at '{FINE_TUNED_MODEL_DIR}'. Loading base pretrained model '{MODEL_NAME}'.")
             model_path = MODEL_NAME
         else:
-            print(f"[✓] Loading fine-tuned model from: {model_path}")
+            print(f" Loading fine-tuned model from: {model_path}")
 
         tokenizer = AutoTokenizer.from_pretrained(str(model_path))
         model = AutoModelForSeq2SeqLM.from_pretrained(str(model_path)).to(DEVICE)
@@ -102,7 +102,7 @@ def run_translation():
     output_file = Path(PROCESSED_DIR) / "baseline_translations.csv"
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_file, index=False, encoding="utf-8")
-    print(f"\n[✓] Translations saved to: {output_file}")
+    print(f"\n Translations saved to: {output_file}")
 
 if __name__ == "__main__":
     run_translation()

@@ -35,7 +35,7 @@ def preprocess_function(examples, tokenizer):
         model_inputs["labels"] = labels["input_ids"]
         return model_inputs
     except Exception as e:
-        print(f"[✗] Error in preprocess_function: {e}")
+        print(f" Error in preprocess_function: {e}")
         traceback.print_exc()
         return {}
 
@@ -44,7 +44,7 @@ def evaluate_bleu(reference, hypothesis):
         smoothie = SmoothingFunction().method4
         return sentence_bleu([reference.split()], hypothesis.split(), smoothing_function=smoothie)
     except Exception as e:
-        print(f"[✗] BLEU evaluation error: {e}")
+        print(f" BLEU evaluation error: {e}")
         traceback.print_exc()
         return 0.0
 
@@ -52,7 +52,7 @@ def evaluate_meteor(reference, hypothesis):
     try:
         return meteor_score([reference], hypothesis)
     except Exception as e:
-        print(f"[✗] METEOR evaluation error: {e}")
+        print(f" METEOR evaluation error: {e}")
         traceback.print_exc()
         return 0.0
 
@@ -66,7 +66,7 @@ def evaluate_comet(srcs, hypos, refs):
         scores = model.predict(samples, batch_size=8, gpus=1 if torch.cuda.is_available() else 0)
         return scores.scores
     except Exception as e:
-        print(f"[✗] COMET evaluation error: {e}")
+        print(f" COMET evaluation error: {e}")
         traceback.print_exc()
         return ["N/A"] * len(srcs)
 
@@ -88,7 +88,7 @@ def translate(texts, tokenizer, model, src_lang, tgt_lang, batch_size=8):
             decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
             results.extend(decoded)
         except Exception as e:
-            print(f"[✗] Error during translation batch {i}-{i+batch_size}: {e}")
+            print(f" Error during translation batch {i}-{i+batch_size}: {e}")
             traceback.print_exc()
             results.extend(["[ERROR]"] * len(batch))
     return results
@@ -106,9 +106,9 @@ def save_results(srcs, refs, hypos, bleu_scores, meteor_scores, comet_scores, ou
         os.makedirs(output_dir, exist_ok=True)
         out_path = os.path.join(output_dir, "evaluation_results.csv")
         df.to_csv(out_path, index=False)
-        print(f"[✓] Saved detailed results to {out_path}")
+        print(f" Saved detailed results to {out_path}")
     except Exception as e:
-        print(f"[✗] Error saving results: {e}")
+        print(f" Error saving results: {e}")
         traceback.print_exc()
 
 def main(args):
@@ -117,7 +117,7 @@ def main(args):
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
         model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME).to(DEVICE)
     except Exception as e:
-        print(f"[✗] Error loading model/tokenizer: {e}")
+        print(f" Error loading model/tokenizer: {e}")
         traceback.print_exc()
         return
 
@@ -125,7 +125,7 @@ def main(args):
         train_dataset_path = os.path.join(DATA_DIR, args.dataset)
         raw_dataset = load_dataset("csv", data_files=train_dataset_path, split="train")
     except Exception as e:
-        print(f"[✗] Error loading dataset: {e}")
+        print(f" Error loading dataset: {e}")
         traceback.print_exc()
         return
 
@@ -137,7 +137,7 @@ def main(args):
         )
         split_dataset = tokenized_dataset.train_test_split(test_size=0.1)
     except Exception as e:
-        print(f"[✗] Error during dataset tokenization/splitting: {e}")
+        print(f" Error during dataset tokenization/splitting: {e}")
         traceback.print_exc()
         return
 
@@ -164,7 +164,7 @@ def main(args):
                 "comet": comet_score if isinstance(comet_score, float) else 0.0,
             }
         except Exception as e:
-            print(f"[✗] Error in compute_metrics: {e}")
+            print(f" Error in compute_metrics: {e}")
             traceback.print_exc()
             return {"bleu": 0.0, "meteor": 0.0, "comet": 0.0}
 
@@ -188,7 +188,7 @@ def main(args):
             no_cuda=not torch.cuda.is_available()
         )
     except Exception as e:
-        print(f"[✗] Error setting up training arguments: {e}")
+        print(f" Error setting up training arguments: {e}")
         traceback.print_exc()
         return
 
@@ -203,12 +203,12 @@ def main(args):
             compute_metrics=compute_metrics,
         )
 
-        print("[*] Starting training...")
+        print(" Starting training...")
         trainer.train()
         trainer.save_model(args.output_dir)
-        print(f"[✓] Model fine-tuned and saved to {args.output_dir}")
+        print(f" Model fine-tuned and saved to {args.output_dir}")
     except Exception as e:
-        print(f"[✗] Error during training: {e}")
+        print(f" Error during training: {e}")
         traceback.print_exc()
         return
 
@@ -218,21 +218,21 @@ def main(args):
         src_texts = test_df["src"].tolist()
         tgt_texts = test_df["tgt"].tolist()
     except Exception as e:
-        print(f"[✗] Error loading test data: {e}")
+        print(f" Error loading test data: {e}")
         traceback.print_exc()
         return
 
-    print("[*] Starting translation on test data...")
+    print(" Starting translation on test data...")
     try:
         model.eval()
         model.to(DEVICE)
         translations = translate(src_texts, tokenizer, model, SOURCE_LANG, TARGET_LANG, batch_size=BATCH_SIZE)
     except Exception as e:
-        print(f"[✗] Error during translation: {e}")
+        print(f" Error during translation: {e}")
         traceback.print_exc()
         return
 
-    print("[*] Evaluating translations...")
+    print(" Evaluating translations...")
     try:
         bleu_scores = [evaluate_bleu(ref, hyp) for ref, hyp in zip(tgt_texts, translations)]
         meteor_scores = [evaluate_meteor(ref, hyp) for ref, hyp in zip(tgt_texts, translations)]
@@ -249,7 +249,7 @@ def main(args):
 
         save_results(src_texts, tgt_texts, translations, bleu_scores, meteor_scores, comet_scores, output_dir=args.output_dir)
     except Exception as e:
-        print(f"[✗] Error during evaluation: {e}")
+        print(f" Error during evaluation: {e}")
         traceback.print_exc()
 
 if __name__ == "__main__":
@@ -261,5 +261,5 @@ if __name__ == "__main__":
     try:
         main(args)
     except Exception as e:
-        print(f"[✗] Unexpected error: {e}")
+        print(f" Unexpected error: {e}")
         traceback.print_exc()
