@@ -1,1 +1,4 @@
 python backtranslate.py --input_file data/mono_en.txt --output_file results/backtranslated.csv --limit 100
+
+
+python scripts/train.py --dataset combined.csv --output_dir models/nllb-finetuned
