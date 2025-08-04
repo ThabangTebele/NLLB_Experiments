@@ -10,7 +10,8 @@ from config import (
     PROCESSED_DIR,
     MAX_LENGTH,
     BATCH_SIZE,
-    FINE_TUNED_MODEL_DIR
+    FINE_TUNED_MODEL_DIR,
+    MODEL_NAME
 )
 
 # Fallback for fine-tuned model path
