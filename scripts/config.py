@@ -18,6 +18,13 @@ LANG_CODES = {
     "tswana": "tsn_Latn"
 }
 
+# === Optional: Language Pairs for training/testing ===
+LANG_PAIRS = [
+    (LANG_CODES["english"], LANG_CODES["sepedi"]),
+    (LANG_CODES["english"], LANG_CODES["tswana"]),
+    # Add more pairs if needed
+]
+
 # Default pair (for baseline)
 SOURCE_LANG = LANG_CODES["english"]
 TARGET_LANG = LANG_CODES["sepedi"]

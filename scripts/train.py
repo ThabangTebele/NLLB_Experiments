@@ -124,6 +124,11 @@ def main(args):
     try:
         train_dataset_path = os.path.join(DATA_DIR, args.dataset)
         raw_dataset = load_dataset("csv", data_files=train_dataset_path, split="train")
+
+        if args.limit:
+            limit_val = min(args.limit, len(raw_dataset))
+            raw_dataset = raw_dataset.select(range(limit_val))
+            print(f"[✓] Dataset truncated to {limit_val} samples for quick testing.")
     except Exception as e:
         print(f" Error loading dataset: {e}")
         traceback.print_exc()
@@ -256,6 +261,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fine-tune NLLB-200 & evaluate")
     parser.add_argument("--dataset", type=str, default="combined.csv", help="Training CSV in data/")
     parser.add_argument("--output_dir", type=str, default="model_finetuned", help="Directory for model + results")
+    parser.add_argument("--limit", type=int, default=None, help="Limit number of training samples for quick tests")
     args = parser.parse_args()
 
     try:

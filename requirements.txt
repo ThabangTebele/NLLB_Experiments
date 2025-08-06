@@ -7,5 +7,4 @@ sacrebleu
 pandas
 tqdm
 accelerate
-unbabel-comet
 nltk
