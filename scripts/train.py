@@ -1,6 +1,7 @@
 import os
 import argparse
 import pandas as pd
+from transformers import GenerationConfig
 from datasets import load_dataset
 from transformers import (
     AutoTokenizer, 
@@ -84,12 +85,16 @@ def evaluate_comet(srcs, hypos, refs):
         traceback.print_exc()
         return ["N/A"] * len(srcs)
 
-def translate(texts, tokenizer, model, src_lang, tgt_lang, batch_size=8):
+def translate(texts, tokenizer, model, src_lang, tgt_lang,generation_config, batch_size=8):
     """
     Translates a list of texts from src_lang to tgt_lang using the provided model and tokenizer.
     """
     results = []
+
+    # Set the target language
     tokenizer.src_lang = src_lang
+    tokenizer.tgt_lang = tgt_lang
+    
     for i in tqdm(range(0, len(texts), batch_size), desc=f"Translating {src_lang} → {tgt_lang}"):
         batch = texts[i:i+batch_size]
         try:
@@ -97,10 +102,7 @@ def translate(texts, tokenizer, model, src_lang, tgt_lang, batch_size=8):
             inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
             outputs = model.generate(
                 **inputs,
-                forced_bos_token_id=tokenizer.lang_code_to_id[tgt_lang],
-                max_length=MAX_LENGTH,
-                num_beams=4,
-                early_stopping=True,
+                generation_config=generation_config
             )
             decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
             results.extend(decoded)
@@ -177,6 +179,9 @@ def main(args):
         print(f" Error loading dataset: {e}")
         traceback.print_exc()
         return
+    
+    generation_config = GenerationConfig.from_pretrained(args.output_dir)
+
 
     # Tokenize and split dataset
     try:
@@ -259,6 +264,22 @@ def main(args):
         print(" Starting training...")
         trainer.train()
         trainer.save_model(args.output_dir)
+
+        # Save GenerationConfig explicitly
+        gen_config = GenerationConfig.from_model_config(model.config)
+
+
+
+        #(Optional) Customize generation parameters
+        gen_config.max_length = MAX_LENGTH
+        gen_config.num_beams = 4  # or whatever you're using
+        gen_config.early_stopping = True
+        gen_config.decoder_start_token_id = model.config.decoder_start_token_id
+
+        gen_config.save_pretrained(args.output_dir)
+        print(" Saved generation config to:", args.output_dir)
+
+
         print(f" Model fine-tuned and saved to {args.output_dir}")
     except Exception as e:
         print(f" Error during training: {e}")
@@ -269,8 +290,12 @@ def main(args):
     try:
         test_path = COMBINED_FILE
         test_df = pd.read_csv(test_path)
-        src_texts = test_df["eng_Latn"].tolist()
-        tgt_texts = test_df["nso_Latn"].tolist()
+
+        test_df.columns = test_df.columns.str.strip()  # Clean column names just in case
+        print("Available columns in test_df:", test_df.columns.tolist())  # Debug output
+
+        src_texts = test_df["src"].tolist()
+        tgt_texts = test_df["tgt"].tolist()
     except Exception as e:
         print(f" Error loading test data: {e}")
         traceback.print_exc()
@@ -281,7 +306,7 @@ def main(args):
     try:
         model.eval()
         model.to(DEVICE)
-        translations = translate(src_texts, tokenizer, model, SOURCE_LANG, TARGET_LANG, batch_size=BATCH_SIZE)
+        translations = translate(src_texts, tokenizer, model, SOURCE_LANG, TARGET_LANG,generation_config=generation_config, batch_size=BATCH_SIZE)
     except Exception as e:
         print(f" Error during translation: {e}")
         traceback.print_exc()
