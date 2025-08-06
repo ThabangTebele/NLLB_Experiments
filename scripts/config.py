@@ -14,14 +14,14 @@ FINE_TUNED_MODEL_DIR = MODEL_DIR / "model_finetuned"
 # === Language codes (NLLB format) ===
 LANG_CODES = {
     "english": "eng_Latn",
-    "sepedi": "nso_Latn",   # Northern Sotho (Sepedi)
-    "tswana": "tsn_Latn"
+    "sepedi": "nso_Latn"   # Northern Sotho (Sepedi)
+    #"tswana": "tsn_Latn"
 }
 
 # === Optional: Language Pairs for training/testing ===
 LANG_PAIRS = [
-    (LANG_CODES["english"], LANG_CODES["sepedi"]),
-    (LANG_CODES["english"], LANG_CODES["tswana"]),
+    (LANG_CODES["english"], LANG_CODES["sepedi"])
+    #(LANG_CODES["english"], LANG_CODES["tswana"]),
     # Add more pairs if needed
 ]
 

@@ -19,6 +19,7 @@ from config import (
     SOURCE_LANG, TARGET_LANG, DEVICE
 )
 
+# Try to import COMET for additional evaluation metric
 try:
     from comet import download_model, load_from_checkpoint
     COMET_AVAILABLE = True
@@ -26,6 +27,9 @@ except ImportError:
     COMET_AVAILABLE = False
 
 def preprocess_function(examples, tokenizer):
+    """
+    Tokenizes input and target texts for the model.
+    """
     try:
         inputs = examples["src"]
         targets = examples["tgt"]
@@ -40,6 +44,9 @@ def preprocess_function(examples, tokenizer):
         return {}
 
 def evaluate_bleu(reference, hypothesis):
+    """
+    Computes BLEU score for a single reference-hypothesis pair.
+    """
     try:
         smoothie = SmoothingFunction().method4
         return sentence_bleu([reference.split()], hypothesis.split(), smoothing_function=smoothie)
@@ -49,14 +56,21 @@ def evaluate_bleu(reference, hypothesis):
         return 0.0
 
 def evaluate_meteor(reference, hypothesis):
+    """
+    Computes METEOR score for a single reference-hypothesis pair.
+    """
     try:
-        return meteor_score([reference], hypothesis)
+        return meteor_score([reference.split()], hypothesis.split())
+
     except Exception as e:
         print(f" METEOR evaluation error: {e}")
         traceback.print_exc()
         return 0.0
 
 def evaluate_comet(srcs, hypos, refs):
+    """
+    Computes COMET scores for a batch of source, hypothesis, and reference sentences.
+    """
     if not COMET_AVAILABLE:
         return ["N/A"] * len(srcs)
     try:
@@ -71,6 +85,9 @@ def evaluate_comet(srcs, hypos, refs):
         return ["N/A"] * len(srcs)
 
 def translate(texts, tokenizer, model, src_lang, tgt_lang, batch_size=8):
+    """
+    Translates a list of texts from src_lang to tgt_lang using the provided model and tokenizer.
+    """
     results = []
     tokenizer.src_lang = src_lang
     for i in tqdm(range(0, len(texts), batch_size), desc=f"Translating {src_lang} → {tgt_lang}"):
@@ -94,6 +111,9 @@ def translate(texts, tokenizer, model, src_lang, tgt_lang, batch_size=8):
     return results
 
 def save_results(srcs, refs, hypos, bleu_scores, meteor_scores, comet_scores, output_dir):
+    """
+    Saves translation results and evaluation metrics to a CSV file in output_dir.
+    """
     try:
         df = pd.DataFrame({
             "src": srcs,
@@ -112,33 +132,58 @@ def save_results(srcs, refs, hypos, bleu_scores, meteor_scores, comet_scores, ou
         traceback.print_exc()
 
 def main(args):
+    """
+    Main training and evaluation workflow:
+    - Loads data
+    - Tokenizes and splits dataset
+    - Fine-tunes the model
+    - Evaluates on test data
+    - Saves results
+    """
     import torch
+    # Load tokenizer and model
     try:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+
+        tokenizer.src_lang = "eng_Latn"
+        tokenizer.tgt_lang = "nso_Latn"
+
         model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME).to(DEVICE)
     except Exception as e:
         print(f" Error loading model/tokenizer: {e}")
         traceback.print_exc()
         return
 
+    # Load and optionally limit the dataset
     try:
-        train_dataset_path = os.path.join(DATA_DIR, args.dataset)
-        raw_dataset = load_dataset("csv", data_files=train_dataset_path, split="train")
+        train_dataset_path = os.path.join(COMBINED_FILE, args.dataset)
+        print(f"Loading dataset from: {train_dataset_path}")
+
+        raw_dataset = load_dataset(
+        "csv",
+        data_files={"train": "data/combined.csv"},
+        split="train"
+        )
+
+        print("Number of training examples:", len(raw_dataset))
+        print("Sample data:", raw_dataset[0] if len(raw_dataset) > 0 else "No data found")
+
 
         if args.limit:
             limit_val = min(args.limit, len(raw_dataset))
             raw_dataset = raw_dataset.select(range(limit_val))
-            print(f"[✓] Dataset truncated to {limit_val} samples for quick testing.")
+            print(f" Dataset truncated to {limit_val} samples for quick testing.")
     except Exception as e:
         print(f" Error loading dataset: {e}")
         traceback.print_exc()
         return
 
+    # Tokenize and split dataset
     try:
         tokenized_dataset = raw_dataset.map(
             lambda x: preprocess_function(x, tokenizer), 
-            batched=True,
-            remove_columns=raw_dataset.column_names
+            batched=True
+            #remove_columns=raw_dataset.column_names
         )
         split_dataset = tokenized_dataset.train_test_split(test_size=0.1)
     except Exception as e:
@@ -148,6 +193,7 @@ def main(args):
 
     data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 
+    # Metric computation for validation during training
     def compute_metrics(eval_preds):
         try:
             preds, labels = eval_preds
@@ -173,10 +219,11 @@ def main(args):
             traceback.print_exc()
             return {"bleu": 0.0, "meteor": 0.0, "comet": 0.0}
 
+    # Set up training arguments for HuggingFace Trainer
     try:
         training_args = Seq2SeqTrainingArguments(
             output_dir=args.output_dir,
-            evaluation_strategy="epoch",
+            eval_strategy="epoch",
             learning_rate=LEARNING_RATE,
             per_device_train_batch_size=BATCH_SIZE,
             per_device_eval_batch_size=BATCH_SIZE,
@@ -190,13 +237,14 @@ def main(args):
             load_best_model_at_end=True,
             metric_for_best_model="eval_loss",
             greater_is_better=False,
-            no_cuda=not torch.cuda.is_available()
+            use_cpu=not torch.cuda.is_available()
         )
     except Exception as e:
         print(f" Error setting up training arguments: {e}")
         traceback.print_exc()
         return
 
+    # Initialize Trainer and start training
     try:
         trainer = Seq2SeqTrainer(
             model=model,
@@ -217,17 +265,19 @@ def main(args):
         traceback.print_exc()
         return
 
+    # Load test data for final evaluation
     try:
-        test_path = os.path.join(DATA_DIR, COMBINED_FILE)
+        test_path = COMBINED_FILE
         test_df = pd.read_csv(test_path)
-        src_texts = test_df["src"].tolist()
-        tgt_texts = test_df["tgt"].tolist()
+        src_texts = test_df["eng_Latn"].tolist()
+        tgt_texts = test_df["nso_Latn"].tolist()
     except Exception as e:
         print(f" Error loading test data: {e}")
         traceback.print_exc()
         return
 
     print(" Starting translation on test data...")
+    # Translate test data
     try:
         model.eval()
         model.to(DEVICE)
@@ -238,6 +288,7 @@ def main(args):
         return
 
     print(" Evaluating translations...")
+    # Evaluate and save results
     try:
         bleu_scores = [evaluate_bleu(ref, hyp) for ref, hyp in zip(tgt_texts, translations)]
         meteor_scores = [evaluate_meteor(ref, hyp) for ref, hyp in zip(tgt_texts, translations)]
@@ -258,6 +309,7 @@ def main(args):
         traceback.print_exc()
 
 if __name__ == "__main__":
+    # Parse command-line arguments for dataset, output directory, and optional limit
     parser = argparse.ArgumentParser(description="Fine-tune NLLB-200 & evaluate")
     parser.add_argument("--dataset", type=str, default="combined.csv", help="Training CSV in data/")
     parser.add_argument("--output_dir", type=str, default="model_finetuned", help="Directory for model + results")

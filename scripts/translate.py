@@ -14,14 +14,18 @@ from config import (
     MODEL_NAME
 )
 
-# Fallback for fine-tuned model path
+# Fallback for fine-tuned model path if not present in config
 try:
     from config import FINE_TUNED_MODEL_DIR
 except ImportError:
     FINE_TUNED_MODEL_DIR = Path("model_finetuned")  # Default if not in config
 
-
 def load_model():
+    """
+    Loads the latest fine-tuned model checkpoint if available,
+    otherwise falls back to the base pretrained model.
+    Returns the tokenizer and model.
+    """
     def get_latest_checkpoint(model_dir: Path) -> Path | None:
         if not model_dir.exists():
             return None
@@ -57,8 +61,11 @@ def load_model():
             print(f"[Critical Error] Failed to load base pretrained model '{MODEL_NAME}': {e2}")
             raise e2
 
-
 def translate_texts(texts, src_lang_code, tgt_lang_code, tokenizer, model):
+    """
+    Translates a list of texts from src_lang_code to tgt_lang_code using the provided model and tokenizer.
+    Returns a list of translated strings.
+    """
     try:
         tokenizer.src_lang = src_lang_code
         encoded = tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=MAX_LENGTH).to(DEVICE)
@@ -74,12 +81,20 @@ def translate_texts(texts, src_lang_code, tgt_lang_code, tokenizer, model):
         return [""] * len(texts)
 
 def run_translation():
+    """
+    Main workflow for translating all sentences in combined.csv.
+    - Loads the combined dataset.
+    - Loads the model and tokenizer.
+    - Groups by language pairs and translates in batches.
+    - Saves the translations to processed/baseline_translations.csv.
+    """
     input_path = Path(DATA_DIR) / "combined.csv"
     df = pd.read_csv(input_path)
 
     tokenizer, model = load_model()
     translations = []
 
+    # Group by language pairs to translate each pair separately
     grouped = df.groupby(['src_lang', 'tgt_lang'])
 
     for (src_lang, tgt_lang), group_df in grouped:
@@ -97,8 +112,10 @@ def run_translation():
             )
             translations.extend(translated_batch)
 
+    # Add translations to the DataFrame
     df["translated"] = translations
 
+    # Save the results to the processed directory
     output_file = Path(PROCESSED_DIR) / "baseline_translations.csv"
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_file, index=False, encoding="utf-8")
