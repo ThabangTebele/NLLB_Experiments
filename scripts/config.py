@@ -39,10 +39,10 @@ EPOCHS = 3
 LEARNING_RATE = 2e-5
 
 # === File names ===
-COMBINED_FILE = PROCESSED_DIR / "combined_dataset.csv"
-TOKENIZED_DATASET_PATH = PROCESSED_DIR / "tokenized_dataset"
-TRANSLATION_OUTPUT = PROCESSED_DIR / "translations.txt"
-EVAL_RESULTS_FILE = PROCESSED_DIR / "eval_results.csv"
+COMBINED_FILE = DATA_DIR / "combined_dataset.csv"
+TOKENIZED_DATASET_PATH = DATA_DIR / "tokenized_dataset"
+TRANSLATION_OUTPUT = DATA_DIR / "translations.txt"
+EVAL_RESULTS_FILE = DATA_DIR / "eval_results.csv"
 
 # === Evaluation ===
 METRICS = ["bleu", "sacrebleu","meteor","comet"]

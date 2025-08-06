@@ -5,7 +5,7 @@ from datasets import load_dataset
 from transformers import (
     AutoTokenizer, 
     AutoModelForSeq2SeqLM, 
-    DataCollatorForSeq2SeqLM, 
+    DataCollatorForSeq2Seq, 
     Seq2SeqTrainer, 
     Seq2SeqTrainingArguments
 )
@@ -15,7 +15,7 @@ from tqdm import tqdm
 import traceback
 
 from config import (
-    MODEL_NAME, DATA_DIR, TEST_DATASET, MAX_LENGTH, BATCH_SIZE, EPOCHS, LEARNING_RATE,
+    MODEL_NAME, DATA_DIR, COMBINED_FILE, MAX_LENGTH, BATCH_SIZE, EPOCHS, LEARNING_RATE,
     SOURCE_LANG, TARGET_LANG, DEVICE
 )
 
@@ -146,7 +146,7 @@ def main(args):
         traceback.print_exc()
         return
 
-    data_collator = DataCollatorForSeq2SeqLM(tokenizer, model=model)
+    data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 
     def compute_metrics(eval_preds):
         try:
@@ -218,7 +218,7 @@ def main(args):
         return
 
     try:
-        test_path = os.path.join(DATA_DIR, TEST_DATASET)
+        test_path = os.path.join(DATA_DIR, COMBINED_FILE)
         test_df = pd.read_csv(test_path)
         src_texts = test_df["src"].tolist()
         tgt_texts = test_df["tgt"].tolist()
