@@ -78,7 +78,7 @@ def translate(texts, source_lang, target_lang, tokenizer, model, batch_size=8, m
         batch = texts[i:i + batch_size]
         try:
             inputs = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=max_length).to(DEVICE)
-            translated = model.generate(**inputs, forced_bos_token_id=tokenizer.lang_code_to_id[target_lang])
+            translated = model.generate(**inputs, forced_bos_token_id=tokenizer.convert_tokens_to_ids(target_lang))
             results.extend(tokenizer.batch_decode(translated, skip_special_tokens=True))
         except Exception as e:
             print(f" Error during translation batch {i}-{i+batch_size}: {e}")
