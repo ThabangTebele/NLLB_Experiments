@@ -7,15 +7,20 @@ from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from nltk.translate.meteor_score import meteor_score
-import traceback  # <-- Add this for stack traces
+import traceback  # For printing stack traces on errors
 
-# Language codes
-SRC_LANG = "eng_Latn"
-TGT_LANG = "nso_Latn"  # Sepedi
+# Language codes for NLLB model
+SRC_LANG = "eng_Latn"      # Source language: English
+TGT_LANG = "nso_Latn"      # Target language: Sepedi
 
+# Use GPU if available, otherwise CPU
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 def get_latest_checkpoint(model_dir: Path) -> Path:
+    """
+    Returns the latest checkpoint directory in a model directory.
+    If no checkpoints are found, returns the base model directory.
+    """
     if not model_dir.exists():
         raise FileNotFoundError(f"Model directory '{model_dir}' not found.")
 
@@ -28,6 +33,9 @@ def get_latest_checkpoint(model_dir: Path) -> Path:
     return latest_checkpoint
 
 def load_model_and_tokenizer(model_path: str):
+    """
+    Loads the tokenizer and model from the specified path (checkpoint or base).
+    """
     try:
         model_dir = get_latest_checkpoint(Path(model_path))
         tokenizer = AutoTokenizer.from_pretrained(model_dir)
@@ -39,6 +47,10 @@ def load_model_and_tokenizer(model_path: str):
         raise
 
 def translate(texts, source_lang, target_lang, tokenizer, model, batch_size=8, max_length=512):
+    """
+    Translates a list of texts from source_lang to target_lang using the provided model and tokenizer.
+    Returns a list of translated strings.
+    """
     results = []
     tokenizer.src_lang = source_lang
     for i in tqdm(range(0, len(texts), batch_size), desc=f"{source_lang} → {target_lang}"):
@@ -54,6 +66,9 @@ def translate(texts, source_lang, target_lang, tokenizer, model, batch_size=8, m
     return results
 
 def evaluate_bleu(reference, hypothesis):
+    """
+    Computes BLEU score for a single reference-hypothesis pair.
+    """
     try:
         smoothie = SmoothingFunction().method4
         return sentence_bleu([reference.split()], hypothesis.split(), smoothing_function=smoothie)
@@ -63,6 +78,9 @@ def evaluate_bleu(reference, hypothesis):
         return 0.0
 
 def evaluate_meteor(reference, hypothesis):
+    """
+    Computes METEOR score for a single reference-hypothesis pair.
+    """
     try:
         return meteor_score([reference], hypothesis)
     except Exception as e:
@@ -71,6 +89,14 @@ def evaluate_meteor(reference, hypothesis):
         return 0.0
 
 def run_backtranslation(input_file, output_file, model_path, limit=None):
+    """
+    Main workflow for back-translation:
+    - Loads the model and tokenizer
+    - Reads input English sentences
+    - Translates EN→ST, then ST→EN (back-translation)
+    - Evaluates BLEU and METEOR scores
+    - Saves results to CSV
+    """
     try:
         tokenizer, model = load_model_and_tokenizer(model_path)
     except Exception:
@@ -91,10 +117,10 @@ def run_backtranslation(input_file, output_file, model_path, limit=None):
     print(f"Loaded {len(original_en)} English sentences.")
 
     try:
-        # EN → ST
+        # EN → ST (forward translation)
         translated_st = translate(original_en, SRC_LANG, TGT_LANG, tokenizer, model)
 
-        # ST → EN (Back-translate)
+        # ST → EN (back-translation)
         back_translated_en = translate(translated_st, TGT_LANG, SRC_LANG, tokenizer, model)
     except Exception as e:
         print(f" Error during translation: {e}")
@@ -115,7 +141,7 @@ def run_backtranslation(input_file, output_file, model_path, limit=None):
     print(f"\nAverage BLEU score: {avg_bleu:.4f}")
     print(f"Average METEOR score: {avg_meteor:.4f}")
 
-    # Save results
+    # Save results to CSV
     try:
         df = pd.DataFrame({
             "original_en": original_en,
@@ -132,6 +158,7 @@ def run_backtranslation(input_file, output_file, model_path, limit=None):
         traceback.print_exc()
 
 if __name__ == "__main__":
+    # Parse command-line arguments for input/output/model/limit
     parser = argparse.ArgumentParser(description="Back-translation EN→ST→EN with evaluation")
     parser.add_argument("--input_file", type=str, required=True, help="Path to monolingual English .txt file")
     parser.add_argument("--output_file", type=str, default="backtranslated.csv", help="CSV output path")

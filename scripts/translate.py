@@ -40,7 +40,7 @@ def load_model():
         model_path = get_latest_checkpoint(Path(FINE_TUNED_MODEL_DIR))
 
         if model_path is None:
-            print(f"[!] Fine-tuned model not found at '{FINE_TUNED_MODEL_DIR}'. Loading base pretrained model '{MODEL_NAME}'.")
+            print(f"Fine-tuned model not found at '{FINE_TUNED_MODEL_DIR}'. Loading base pretrained model '{MODEL_NAME}'.")
             model_path = MODEL_NAME
         else:
             print(f" Loading fine-tuned model from: {model_path}")
@@ -50,8 +50,8 @@ def load_model():
         return tokenizer, model
 
     except Exception as e:
-        print(f"[Error] Failed to load model/tokenizer from '{model_path if 'model_path' in locals() else 'unknown'}': {e}")
-        print(f"[!] Falling back to base pretrained model '{MODEL_NAME}'.")
+        print(f" Failed to load model/tokenizer from '{model_path if 'model_path' in locals() else 'unknown'}': {e}")
+        print(f"Falling back to base pretrained model '{MODEL_NAME}'.")
 
         try:
             tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
@@ -113,7 +113,7 @@ def run_translation():
             translations.extend(translated_batch)
 
     # Add translations to the DataFrame
-    df["translated"] = translations
+    df["tgt"] = translations
 
     # Save the results to the processed directory
     output_file = Path(PROCESSED_DIR) / "baseline_translations.csv"
