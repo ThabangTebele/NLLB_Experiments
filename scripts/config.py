@@ -8,8 +8,8 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # === File paths ===
 DATA_DIR = Path("data")
 PROCESSED_DIR = Path("processed")
-MODEL_DIR = Path("model")
-FINE_TUNED_MODEL_DIR = MODEL_DIR / "model_finetuned"
+MODEL_DIR = Path("models")
+FINE_TUNED_MODEL_DIR = MODEL_DIR / "nllb-finetuned"
 
 # === Language codes (NLLB format) ===
 LANG_CODES = {

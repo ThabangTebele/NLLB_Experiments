@@ -1,5 +1,5 @@
 {
-  "best_metric": 11.682123184204102,
+  "best_metric": 12.38757038116455,
   "best_model_checkpoint": "models/nllb-finetuned\\checkpoint-4",
   "epoch": 2.0,
   "eval_steps": 500,
@@ -12,22 +12,22 @@
       "epoch": 1.0,
       "eval_bleu": 0.0,
       "eval_comet": 0.0,
-      "eval_loss": 11.848626136779785,
+      "eval_loss": 12.614728927612305,
       "eval_meteor": 0.0,
-      "eval_runtime": 7.8805,
-      "eval_samples_per_second": 0.127,
-      "eval_steps_per_second": 0.127,
+      "eval_runtime": 11.2834,
+      "eval_samples_per_second": 0.089,
+      "eval_steps_per_second": 0.089,
       "step": 2
     },
     {
       "epoch": 2.0,
       "eval_bleu": 0.0,
       "eval_comet": 0.0,
-      "eval_loss": 11.682123184204102,
+      "eval_loss": 12.38757038116455,
       "eval_meteor": 0.0,
-      "eval_runtime": 3.1988,
-      "eval_samples_per_second": 0.313,
-      "eval_steps_per_second": 0.313,
+      "eval_runtime": 2.7351,
+      "eval_samples_per_second": 0.366,
+      "eval_steps_per_second": 0.366,
       "step": 4
     }
   ],

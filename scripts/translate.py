@@ -18,7 +18,7 @@ from config import (
 try:
     from config import FINE_TUNED_MODEL_DIR
 except ImportError:
-    FINE_TUNED_MODEL_DIR = Path("model_finetuned")  # Default if not in config
+    FINE_TUNED_MODEL_DIR = Path("models/nllb-finetuned")  # Default if not in config
 
 def load_model():
     """

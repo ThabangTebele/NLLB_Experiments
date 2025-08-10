@@ -14,6 +14,8 @@ from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from nltk.translate.meteor_score import meteor_score
 from tqdm import tqdm
 import traceback
+import numpy as np
+
 
 from config import (
     MODEL_NAME, DATA_DIR, COMBINED_FILE, MAX_LENGTH, BATCH_SIZE, EPOCHS, LEARNING_RATE,
@@ -202,15 +204,33 @@ def main(args):
     def compute_metrics(eval_preds):
         try:
             preds, labels = eval_preds
-            labels = [[(l if l != -100 else tokenizer.pad_token_id) for l in label] for label in labels]
 
+            # Debug prints to inspect preds and labels shape and sample tokens
+            print(f"compute_metrics: preds type: {type(preds)}, shape: {getattr(preds, 'shape', 'N/A')}")
+            print(f"compute_metrics: labels type: {type(labels)}, shape: {getattr(labels, 'shape', 'N/A')}")
+
+            # If preds are logits (3D), convert to token ids
+            if preds.ndim == 3:
+                preds = np.argmax(preds, axis=-1)
+                print("Predictions converted from logits to token IDs.")
+
+            # Replace -100 in labels with pad_token_id for proper decoding
+            labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+
+            # Decode predictions and labels to strings
             preds_text = tokenizer.batch_decode(preds, skip_special_tokens=True)
             labels_text = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
-            bleu = sum([evaluate_bleu(ref, hyp) for ref, hyp in zip(labels_text, preds_text)]) / len(preds_text)
-            meteor = sum([evaluate_meteor(ref, hyp) for ref, hyp in zip(labels_text, preds_text)]) / len(preds_text)
+            # Print first few pairs for sanity check
+            for i in range(min(3, len(preds_text))):
+                print(f"Sample {i} - REF: {labels_text[i]}")
+                print(f"Sample {i} - PRED: {preds_text[i]}")
+
+            # Compute metrics over all samples
+            bleu = np.mean([evaluate_bleu(ref, hyp) for ref, hyp in zip(labels_text, preds_text)])
+            meteor = np.mean([evaluate_meteor(ref, hyp) for ref, hyp in zip(labels_text, preds_text)])
             comet_scores = evaluate_comet(labels_text, preds_text, labels_text)
-            comet_score = "N/A" if not COMET_AVAILABLE else sum(comet_scores) / len(comet_scores)
+            comet_score = "N/A" if not COMET_AVAILABLE else np.mean(comet_scores)
 
             print(f"[Epoch Eval] BLEU={bleu:.4f}, METEOR={meteor:.4f}, COMET={comet_score if isinstance(comet_score, str) else f'{comet_score:.4f}'}")
 
@@ -223,6 +243,7 @@ def main(args):
             print(f" Error in compute_metrics: {e}")
             traceback.print_exc()
             return {"bleu": 0.0, "meteor": 0.0, "comet": 0.0}
+
 
     # Set up training arguments for HuggingFace Trainer
     try:
@@ -268,13 +289,6 @@ def main(args):
         # Save GenerationConfig explicitly
         gen_config = GenerationConfig.from_model_config(model.config)
 
-
-
-        #(Optional) Customize generation parameters
-        gen_config.max_length = MAX_LENGTH
-        gen_config.num_beams = 4  # or whatever you're using
-        gen_config.early_stopping = True
-        gen_config.decoder_start_token_id = model.config.decoder_start_token_id
 
         gen_config.save_pretrained(args.output_dir)
         print(" Saved generation config to:", args.output_dir)

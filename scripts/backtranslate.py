@@ -7,50 +7,71 @@ from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from nltk.translate.meteor_score import meteor_score
-import traceback  # For printing stack traces on errors
-
-# Language codes for NLLB model
-SRC_LANG = "eng_Latn"      # Source language: English
-TGT_LANG = "nso_Latn"      # Target language: Sepedi
+import traceback
+import nltk
+nltk.download('punkt_tab')
+import re
+import sys
+from config import FINE_TUNED_MODEL_DIR, MODEL_NAME
 
 # Use GPU if available, otherwise CPU
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
+# Language mapping for cross-translation pairs (expand as needed)
+LANG_MAP = {
+    "eng_Latn": "nso_Latn",  # English → Sepedi
+    "nso_Latn": "tsn_Latn",  # Sepedi → Setswana
+    "tsn_Latn": "nso_Latn",  # Setswana → Sepedi
+}
+
+LANG_PATTERN = re.compile(r"^([a-z]{3}_[A-Z][a-z]{3})\.(txt|csv)$")
+
+def detect_langs(filename):
+    filename_only = Path(filename).name
+    match = LANG_PATTERN.match(filename_only)
+    if not match:
+        sys.exit(
+            f" Invalid filename: {filename_only}\n"
+            "Expected format: <langCode>.<ext>\n"
+            "Example: eng_Latn.txt or nso_Latn.csv"
+        )
+    src_lang, ext = match.groups()
+
+    if src_lang not in LANG_MAP:
+        sys.exit(f"No target language mapping found for '{src_lang}' in LANG_MAP.")
+
+    tgt_lang = LANG_MAP[src_lang]
+    print(f" Detected SRC_LANG: {src_lang} → TGT_LANG: {tgt_lang}")
+    return src_lang, tgt_lang, ext
+
 def get_latest_checkpoint(model_dir: Path) -> Path:
-    """
-    Returns the latest checkpoint directory in a model directory.
-    If no checkpoints are found, returns the base model directory.
-    """
     if not model_dir.exists():
         raise FileNotFoundError(f"Model directory '{model_dir}' not found.")
 
     checkpoints = [d for d in model_dir.iterdir() if d.is_dir() and d.name.startswith("checkpoint-")]
     if not checkpoints:
-        return model_dir  # No checkpoints — return base path
+        return model_dir
 
     latest_checkpoint = max(checkpoints, key=lambda d: int(d.name.split("-")[-1]))
     print(f" Using latest checkpoint: {latest_checkpoint.name}")
     return latest_checkpoint
 
+
+
 def load_model_and_tokenizer(model_path: str):
-    """
-    Loads the tokenizer and model from the specified path (checkpoint or base).
-    """
-    try:
-        model_dir = get_latest_checkpoint(Path(model_path))
+    model_dir = get_latest_checkpoint(FINE_TUNED_MODEL_DIR)
+    if model_dir is not None and model_dir.exists():
+        print(f"Loading model/tokenizer from local checkpoint: {model_dir}")
         tokenizer = AutoTokenizer.from_pretrained(model_dir)
         model = AutoModelForSeq2SeqLM.from_pretrained(model_dir).to(DEVICE)
-        return tokenizer, model
-    except Exception as e:
-        print(f" Error loading model/tokenizer from '{model_path}': {e}")
-        traceback.print_exc()
-        raise
+    else:
+        print(f"Local checkpoint not found. Loading base model from hub: {MODEL_NAME}")
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME).to(DEVICE)
+    return tokenizer, model
+
 
 def translate(texts, source_lang, target_lang, tokenizer, model, batch_size=8, max_length=512):
-    """
-    Translates a list of texts from source_lang to target_lang using the provided model and tokenizer.
-    Returns a list of translated strings.
-    """
     results = []
     tokenizer.src_lang = source_lang
     for i in tqdm(range(0, len(texts), batch_size), desc=f"{source_lang} → {target_lang}"):
@@ -66,9 +87,6 @@ def translate(texts, source_lang, target_lang, tokenizer, model, batch_size=8, m
     return results
 
 def evaluate_bleu(reference, hypothesis):
-    """
-    Computes BLEU score for a single reference-hypothesis pair.
-    """
     try:
         smoothie = SmoothingFunction().method4
         return sentence_bleu([reference.split()], hypothesis.split(), smoothing_function=smoothie)
@@ -77,26 +95,25 @@ def evaluate_bleu(reference, hypothesis):
         traceback.print_exc()
         return 0.0
 
+
 def evaluate_meteor(reference, hypothesis):
-    """
-    Computes METEOR score for a single reference-hypothesis pair.
-    """
     try:
-        return meteor_score([reference], hypothesis)
+        # Tokenize strings into lists of words
+        ref_tokens = nltk.word_tokenize(reference)
+        hyp_tokens = nltk.word_tokenize(hypothesis)
+        # meteor_score expects lists of tokens for both reference and hypothesis
+        return meteor_score([ref_tokens], hyp_tokens)
     except Exception as e:
         print(f" METEOR evaluation error: {e}")
         traceback.print_exc()
         return 0.0
 
 def run_backtranslation(input_file, output_file, model_path, limit=None):
-    """
-    Main workflow for back-translation:
-    - Loads the model and tokenizer
-    - Reads input English sentences
-    - Translates EN→ST, then ST→EN (back-translation)
-    - Evaluates BLEU and METEOR scores
-    - Saves results to CSV
-    """
+    try:
+        SRC_LANG, TGT_LANG, ext = detect_langs(input_file)
+    except SystemExit:
+        return
+
     try:
         tokenizer, model = load_model_and_tokenizer(model_path)
     except Exception:
@@ -104,34 +121,39 @@ def run_backtranslation(input_file, output_file, model_path, limit=None):
         return
 
     try:
-        with open(input_file, "r", encoding="utf-8") as f:
-            original_en = [line.strip() for line in f if line.strip()]
+        if ext == "csv":
+            df = pd.read_csv(input_file)
+            if "src" not in df.columns:
+                print(" CSV input must contain a 'src' column.")
+                return
+            original_texts = df["src"].dropna().astype(str).tolist()
+        else:
+            with open(input_file, "r", encoding="utf-8") as f:
+                original_texts = [line.strip() for line in f if line.strip()]
     except Exception as e:
         print(f"Error reading input file '{input_file}': {e}")
         traceback.print_exc()
         return
 
     if limit:
-        original_en = original_en[:limit]
+        original_texts = original_texts[:limit]
 
-    print(f"Loaded {len(original_en)} English sentences.")
+    print(f"Loaded {len(original_texts)} sentences for back-translation.")
 
     try:
-        # EN → ST (forward translation)
-        translated_st = translate(original_en, SRC_LANG, TGT_LANG, tokenizer, model)
-
-        # ST → EN (back-translation)
-        back_translated_en = translate(translated_st, TGT_LANG, SRC_LANG, tokenizer, model)
+        # Forward translation
+        translated_tgt = translate(original_texts, SRC_LANG, TGT_LANG, tokenizer, model)
+        # Back translation
+        back_translated_src = translate(translated_tgt, TGT_LANG, SRC_LANG, tokenizer, model)
     except Exception as e:
         print(f" Error during translation: {e}")
         traceback.print_exc()
         return
 
-    # Evaluate similarity between original and back-translated English
     bleu_scores = []
     meteor_scores = []
 
-    for orig, back in zip(original_en, back_translated_en):
+    for orig, back in zip(original_texts, back_translated_src):
         bleu_scores.append(evaluate_bleu(orig, back))
         meteor_scores.append(evaluate_meteor(orig, back))
 
@@ -141,28 +163,25 @@ def run_backtranslation(input_file, output_file, model_path, limit=None):
     print(f"\nAverage BLEU score: {avg_bleu:.4f}")
     print(f"Average METEOR score: {avg_meteor:.4f}")
 
-    # Save results to CSV
     try:
-        df = pd.DataFrame({
-            "original_en": original_en,
-            "translated_st": translated_st,
-            "back_translated_en": back_translated_en,
+        df_out = pd.DataFrame({
+            "original_src": original_texts,
+            f"translated_{TGT_LANG}": translated_tgt,
+            f"back_translated_{SRC_LANG}": back_translated_src,
             "bleu_score": bleu_scores,
             "meteor_score": meteor_scores
         })
-
-        df.to_csv(output_file, index=False)
-        print(f" Saved back-translation to {output_file}")
+        df_out.to_csv(output_file, index=False)
+        print(f" Saved back-translation results to: {output_file}")
     except Exception as e:
         print(f" Error saving results to '{output_file}': {e}")
         traceback.print_exc()
 
 if __name__ == "__main__":
-    # Parse command-line arguments for input/output/model/limit
-    parser = argparse.ArgumentParser(description="Back-translation EN→ST→EN with evaluation")
-    parser.add_argument("--input_file", type=str, required=True, help="Path to monolingual English .txt file")
-    parser.add_argument("--output_file", type=str, default="backtranslated.csv", help="CSV output path")
-    parser.add_argument("--model_path", type=str, default="facebook/nllb-200-distilled-600M", help="Base or fine-tuned model directory")
+    parser = argparse.ArgumentParser(description="Back-translation with auto language detection")
+    parser.add_argument("--input_file", type=str, required=True, help="Path to input file (.txt or .csv)")
+    parser.add_argument("--output_file", type=str, default="data/backtranslated.csv", help="CSV output file path")
+    parser.add_argument("--model_path", type=str, default="facebook/nllb-200-distilled-600M", help="Model or checkpoint directory")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of sentences to process")
 
     try:
