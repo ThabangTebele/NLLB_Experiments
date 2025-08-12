@@ -15,6 +15,7 @@ from nltk.translate.meteor_score import meteor_score
 from tqdm import tqdm
 import traceback
 import numpy as np
+import torch
 
 
 from config import (
