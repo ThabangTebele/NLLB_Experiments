@@ -1,4 +1,24 @@
-python backtranslate.py --input_file data/mono_en.txt --output_file results/backtranslated.csv --limit 100
+
+python scripts/train.py --dataset combined.csv --output_dir models/nllb-finetuned --limit 10
+
+# actiavtes he python virtual environment 
+venv\Scripts\activate
+
+python scripts/backtranslate.py --input_file data/eng_Latn.txt --limit 10
 
 
-python scripts/train.py --dataset combined.csv --output_dir models/nllb-finetuned
+
+generation_config = GenerationConfig(
+    max_length=128,
+    num_beams=1,  # beam search = slower; greedy = faster
+    do_sample=False,
+)
+
+pip install -r requirements.txt -i https://pypi.org/simple --timeout 100
+
+
+python -m venv venv
+
+venv\Scripts\activate
+
+deactivate
