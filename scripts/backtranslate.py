@@ -9,7 +9,6 @@ from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from nltk.translate.meteor_score import meteor_score
 import traceback
 import nltk
-nltk.download('punkt')
 import re
 import sys
 from config import FINE_TUNED_MODEL_DIR, MODEL_NAME
@@ -47,19 +46,20 @@ def load_model_and_tokenizer(model_path: str):
     return tokenizer, model
 
 def translate(texts, src_lang, tgt_lang, tokenizer, model, batch_size=8, max_length=512):
-    results = []
     tokenizer.src_lang = src_lang
+    all_results = []
     for i in tqdm(range(0, len(texts), batch_size), desc=f"{src_lang} → {tgt_lang}"):
         batch = texts[i:i+batch_size]
         try:
             inputs = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=max_length).to(DEVICE)
             translated = model.generate(**inputs, forced_bos_token_id=tokenizer.convert_tokens_to_ids(tgt_lang))
-            results.extend(tokenizer.batch_decode(translated, skip_special_tokens=True))
+            results = tokenizer.batch_decode(translated, skip_special_tokens=True)
         except Exception as e:
             print(f"Error in batch {i}-{i+batch_size}: {e}")
             traceback.print_exc()
-            results.extend(["[ERROR]"] * len(batch))
-        yield results  # Yield partial results after each batch
+            results = ["[ERROR]"] * len(batch)
+        all_results.extend(results)
+    return all_results
 
 def evaluate_bleu(reference, hypothesis):
     smoothie = SmoothingFunction().method4
@@ -98,6 +98,7 @@ def run_backtranslation(input_file, output_file, model_path, limit=None, batch_s
     else:
         with open(input_file, "r", encoding="utf-8") as f:
             texts = [line.strip() for line in f if line.strip()]
+
     if limit:
         texts = texts[:limit]
 
@@ -110,34 +111,40 @@ def run_backtranslation(input_file, output_file, model_path, limit=None, batch_s
     all_bleu = []
     all_meteor = []
 
-    for i, batch_results in enumerate(translate(texts, src_lang, tgt_lang, tokenizer, model, batch_size=batch_size)):
-        # Forward translation results
-        batch_translated = batch_results[-batch_size:]
+    for i in range(0, len(texts), batch_size):
+        batch_src = texts[i:i+batch_size]
+
+        # Forward translation
+        batch_translated = translate(batch_src, src_lang, tgt_lang, tokenizer, model, batch_size=batch_size)
+
         # Back translation
-        batch_back = list(translate(batch_translated, tgt_lang, src_lang, tokenizer, model, batch_size=batch_size))[-1][-len(batch_translated):]
+        batch_back = translate(batch_translated, tgt_lang, src_lang, tokenizer, model, batch_size=batch_size)
 
-        # Compute metrics
-        batch_bleu = [evaluate_bleu(orig, back) for orig, back in zip(texts[i*batch_size:(i+1)*batch_size], batch_back)]
-        batch_meteor = [evaluate_meteor(orig, back) for orig, back in zip(texts[i*batch_size:(i+1)*batch_size], batch_back)]
+        # Metrics
+        batch_bleu = [evaluate_bleu(orig, back) for orig, back in zip(batch_src, batch_back)]
+        batch_meteor = [evaluate_meteor(orig, back) for orig, back in zip(batch_src, batch_back)]
 
-        # Append to lists
+        # Append to running lists
         all_translated.extend(batch_translated)
         all_back.extend(batch_back)
         all_bleu.extend(batch_bleu)
         all_meteor.extend(batch_meteor)
 
-        # Save partial results
+        # Ensure equal length before DataFrame
+        min_len = min(len(all_translated), len(all_back), len(all_bleu), len(all_meteor))
         df_out = pd.DataFrame({
-            "original_src": texts[start_idx:start_idx+len(all_back)],
-            f"translated_{tgt_lang}": all_translated,
-            f"back_translated_{src_lang}": all_back,
-            "bleu_score": all_bleu,
-            "meteor_score": all_meteor
+            "original_src": texts[:min_len],
+            f"translated_{tgt_lang}": all_translated[:min_len],
+            f"back_translated_{src_lang}": all_back[:min_len],
+            "bleu_score": all_bleu[:min_len],
+            "meteor_score": all_meteor[:min_len]
         })
+
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         df_out.to_csv(output_file, index=False)
-        save_checkpoint(start_idx + len(all_back))
-        print(f"Batch {i+1} saved. Checkpoint updated to index {start_idx + len(all_back)}")
+        save_checkpoint(start_idx + min_len)
+
+        print(f"Batch {i//batch_size + 1} saved. Checkpoint updated to index {start_idx + min_len}")
 
     print(f"Back-translation complete. Results saved to {output_file}")
 
