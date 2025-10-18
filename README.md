@@ -1,101 +1,142 @@
-#  Exploring Machine Translation Strategies for Sepedi  
+#  Exploring Machine Translation Strategies for Sepedi
 ### A Study on Low-Resource Neural Machine Translation using NLLB-200
 
-This repository contains the full experimental setup, datasets, and scripts used in the Honours research project:  
-**“Exploring Machine Translation Strategies for Sepedi, a Low-Resource South African Language.”**  
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![License](https://img.shields.io/badge/License-Research--Only-lightgrey)
+![HuggingFace](https://img.shields.io/badge/Transformers-🤗-yellow)
+![Status](https://img.shields.io/badge/Status-Research%20Complete-brightgreen)
 
-It enables complete reproducibility of the experiments conducted on **Sepedi↔English** translation, including **back-translation** and **cross-translation** augmentation, using Meta AI’s **No Language Left Behind (NLLB-200)** model.
+## Overview
+This repository contains all scripts, configurations, and datasets used in the Honours research project:  
+**“Exploring Machine Translation Strategies for Sepedi, a Low-Resource South African Language.”**
 
----
+The project investigates the effectiveness of **Neural Machine Translation (NMT)** approaches for **Sepedi↔English** translation using **Meta AI’s NLLB-200** model.  
+It explores three main strategies:
+1. **Baseline Evaluation** – Direct fine-tuning using parallel data.
+2. **Back-Translation** – Augmenting training data with synthetic pairs generated from English monolingual corpora.
+3. **Cross-Translation** – Leveraging linguistically related languages (Setswana) to generate additional data.
 
-##  Project Overview
-
-Sepedi (Northern Sotho) is a low-resource South African language with limited bilingual digital text data.  
-This research investigates three main strategies to enhance translation quality:
-
-1. **Baseline Evaluation** – Assess the pretrained NLLB-200 model on Sepedi–English translation.  
-2. **Back-Translation** – Augment training data by generating synthetic parallel pairs from English monolingual text.  
-3. **Cross-Translation** – Leverage Setswana–English data to create Sepedi–English synthetic pairs through linguistic transfer.
-
-All experiments were conducted using the **traditional scientific experimentation methodology**, ensuring controlled replication and measurable outcomes.
+All experiments are reproducible using the included scripts.
 
 ---
 
 ## Repository Structure
-NLLB_Experiments/
+```
+📁 project-root/
 │
-├── config.py # Global configuration (paths, constants, hyperparameters)
-├── preprocess.py # Cleans and aligns parallel corpora
-├── train.py # Fine-tunes NLLB-200 model
-├── translate.py # Translates and evaluates with BLEU/METEOR
-├── backtranslate.py # Generates synthetic data (English → Sepedi → English)
-├── requirements.txt # Python dependencies
+├── data/                     # Raw and processed datasets
+│   ├── raw/                  # Unprocessed files (SADiLaR + Wikipedia)
+│   ├── processed/            # Cleaned and tokenised corpora
+│   └── combined.csv          # Unified dataset ready for model input
 │
-├── data/
-│ ├── nso_eng_parallel.csv # Sepedi–English corpus (SADiLaR)
-│ ├── tsn_eng_parallel.csv # Setswana–English corpus (SADiLaR)
-│ ├── wikipedia_en.txt # English monolingual corpus (TensorFlow Wikipedia 2023)
-│ └── processed/ # Cleaned, aligned, and merged outputs
+├── scripts/
+│   ├── preprocess.py         # Data cleaning and normalisation
+│   ├── translate.py          # Handles translation and evaluation
+│   ├── train.py              # Fine-tuning NLLB-200 on custom datasets
+│   └── config.py             # Global paths and constants
 │
-├── models/
-│ └── nllb_finetuned/ # Model checkpoints and fine-tuned versions
+├── results/
+│   ├── baseline.csv          # Baseline translation results
+│   ├── backtranslation.csv   # Results after augmentation
+│   ├── loss_plot.png         # Training loss over epochs
+│   └── evaluation_metrics.txt
 │
-└── results/
-├── baseline_translations.csv
-├── backtranslation_results.csv
-├── cross_translation_results.csv
-├── evaluation_summary.csv
-└── training_logs/
-
+├── requirements.txt
+├── README.md
+└── LICENSE
+```
 
 ---
 
-##  Environment Setup
+## Setup and Installation
 
-### 1. Create and activate a virtual environment
+### 1. Clone the Repository
+```bash
+git clone https://github.com/<your-username>/sepedi-nmt-research.git
+cd sepedi-nmt-research
+```
+
+### 2. Create a Virtual Environment
 ```bash
 python -m venv venv
-# On Windows
-venv\Scripts\activate
-# On macOS/Linux
-source venv/bin/activate
+source venv/bin/activate   # On Windows use: venv\Scripts\activate
+```
+
+### 3️. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 4️. Download Required Models
+The experiments use **NLLB-200 distilled (600M)** available from Hugging Face:
+```bash
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+model = AutoModelForSeq2SeqLM.from_pretrained("facebook/nllb-200-distilled-600M")
+tokenizer = AutoTokenizer.from_pretrained("facebook/nllb-200-distilled-600M")
+```
+
+---
+
+## Data Sources
+- **SADiLaR Parallel Corpora** (Sepedi–English)
+- **Wikipedia 2023 English Dump** (via TensorFlow Datasets)
+- **Autshumato Parallel Texts**
+All datasets are cleaned, sentence-aligned, and normalised via `preprocess.py`.
+
+---
+
+## Running Experiments
+
+### Baseline Evaluation
+Evaluate the pre-trained NLLB-200 model on the parallel Sepedi–English corpus:
+```bash
+python scripts/translate.py --input_file combined.csv --output_file results/baseline.csv
+```
+
+### Back-Translation
+Perform English → Sepedi → English back-translation:
+```bash
+python scripts/backtranslate.py --input_file wikipedia_en.csv --output_file results/backtranslation.csv
+```
+
+### Cross-Translation
+Translate Setswana → Sepedi to generate new synthetic data:
+```bash
+python scripts/crosstranslate.py --input_file tswana_en.csv --output_file results/crosstranslation.csv
+```
+
+### Fine-Tuning
+Retrain model using augmented datasets:
+```bash
+python scripts/train.py
+```
+
+---
+
+##  Evaluation Metrics
+- **BLEU** (Papineni et al., 2002)
+- **METEOR** (Banerjee & Lavie, 2005)
+- **Validation Loss Curves** are logged automatically.
+Evaluation scripts can be re-run using:
+```bash
+python scripts/evaluate.py
+```
+
+---
+
+## Reproducibility
+All random seeds are fixed.  
+Each experiment logs:
+- Model configuration
+- Tokeniser version
+- Dataset size and source
+- Checkpoint ID
+- Average BLEU and METEOR scores
+
+Training outputs and configurations are automatically saved under `/results/`.
 
 
 ---
-## Install dependencies
-pip install -r requirements.txt
 
-
-## Verify PyTorch installation
-python -c "import torch; print(torch.cuda.is_available())"
-
-## Configuration (config.py)
-MODEL_NAME = "facebook/nllb-200-distilled-600M"
-DEVICE = "cuda"  # or "cpu"
-DATA_DIR = "data/"
-PROCESSED_DIR = "data/processed/"
-FINE_TUNED_MODEL_DIR = "models/nllb_finetuned/"
-MAX_LENGTH = 128
-BATCH_SIZE = 8
-LEARNING_RATE = 2e-5
-EPOCHS = 3
-
-## Step 1 — Data Preprocessing
-python preprocess.py
-
-## Step 2 — Baseline Evaluation
-python translate.py --input_file data/processed/combined.csv \
-                    --output_file results/baseline_translations.csv
-
-
-## Step 3 — Back-Translation
-python backtranslate.py --input_file data/wikipedia_en.txt \
-                        --output_file results/backtranslated.csv \
-                        --model_path models/nllb_finetuned/
-
-
-## Step 4 — Cross-Translation
-python translate.py --input_file data/tsn_eng_parallel.csv \
-                    --output_file results/cross_translation.csv
-
-
+## License
+This project is licensed for **academic and non-commercial research** purposes only.
